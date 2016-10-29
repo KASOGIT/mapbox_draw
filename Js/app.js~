@@ -1,0 +1,230 @@
+var dm = new DM.Map('map', {
+  accessToken: 'pk.eyJ1IjoiZHJvbmVtYXAiLCJhIjoiY2luMDlidXVoMDBtZ3c4bTJvdzIzZzlsNiJ9.qIT_9G9X54DOoItfXneMUA',
+  tile: 'mapbox.streets',
+  latlng: [46.73, 3.43],
+  zoom: 7
+});
+
+var map = dm.getMap();
+
+if (!navigator.geolocation)
+{
+  alert('Geolocation not working on this browser');
+}
+else
+{
+  document.addEventListener('DOMContentLoaded', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    // var map = dm.getMap();
+    map.locate();
+  }, false);
+}
+
+// map = dm.getMap();
+map.on('locationfound', function(e) {
+  map.fitBounds(e.bounds);
+  var posLayer = L.mapbox.featureLayer().addTo(map);
+  posLayer.setGeoJSON({
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [e.latlng.lng, e.latlng.lat]
+    },
+    properties: {
+      'title': 'here i am!',
+      'marker-color': '#ff8888',
+      'marker-symbol': 'star'
+    }
+  });
+});
+
+// map = dm.getMap();
+map.on('locationerror', function() {
+  console.log('Position could not be found');
+});
+
+
+var geocoder = L.mapbox.geocoder('mapbox.places', {autocomplete:true});
+
+$("#search-bar-input").click(function() {
+  $(this).val('');
+});
+
+function get_query(err, data) {
+  // The geocoder can return an area, like a city, or a
+  // point, like an address. Here we handle both cases,
+  // by fitting the map bounds to an area or zooming to a point.
+  show_proposition(data.results.features);
+}
+
+function show_proposition(features, data)
+{
+  $("#search-bar-autocomplete .list-group *").remove();
+  for (i = 0; i < features.length; i++) {
+    var res = '<button type="button" class="list-group-item">'.concat(features[i].place_name, '</button>');
+    $("#search-bar-autocomplete .list-group").append(res);
+  }
+  $("#search-bar-autocomplete .list-group button").click(function() {
+    $("#search-bar-input").val($(this).text());
+    geocoder.query($(this).text(), set_map);
+  });
+}
+
+function set_map(err, data)
+{
+  var map = dm.getMap();
+  if (data.lbounds) {
+    map.fitBounds(data.lbounds);
+  } else if (data.latlng) {
+    map.setView([data.latlng[0], data.latlng[1]], 17);
+  }
+}
+
+function geocodeThis() {
+  var text = document.getElementById('search-bar-input').value;
+  geocoder.query(text, get_query);
+}
+
+function take_screen_map()
+{
+  dm.snapshot(function(image) {
+    console.log('success snapshot');
+    $.post(
+      './screen_ctrl.php',
+      {
+        type: "save_screen",
+        image: image.src
+      },
+      function (data) {
+        alert(data);
+      },
+      'html'
+    );
+  });
+}
+
+$('body').click(function() {
+  $("#search-bar-autocomplete .list-group *").remove();
+});
+
+
+(function($) {
+  $.fn.clickToggle = function(func1, func2) {
+    var funcs = [func1, func2];
+    this.data('toggleclicked', 0);
+    this.click(function() {
+      var data = $(this).data();
+      var tc = data.toggleclicked;
+      $.proxy(funcs[tc], this)();
+      data.toggleclicked = (tc + 1) % 2;
+    });
+    return this;
+  };
+}(jQuery));
+
+
+var flayer;
+var clusterGroup;
+
+function addReseau() {
+  var map = dm.getMap();
+  flayer = L.mapbox.featureLayer('../Map/data/dronistes.geojson').on('ready', function(e) {
+    clusterGroup = new L.MarkerClusterGroup();
+    // The clusterGroup gets each marker in the group added to it
+    // once loaded, and then is added to the map
+    e.target.eachLayer(function(layer) {
+      console.log(layer);
+      layer._latlng.lat += 0.00006;
+      layer._latlng.lng -= 0.00004;
+      layer.options.icon.options.iconUrl = "../Map/Img/Pointeur_Drone.png";
+      layer.options.icon.options.iconSize[0] = 35;
+      layer.options.icon.options.iconSize[1] = 50;
+      clusterGroup.addLayer(layer);
+    });
+    map.addLayer(clusterGroup);
+  });
+}
+
+$('#reseau').clickToggle(function() {
+  addReseau();
+},
+function() {
+  var map = dm.getMap();
+  map.removeLayer(clusterGroup);
+});
+
+var myLayer;
+
+function addNoFlyZone() {
+  var map = dm.getMap();
+  myLayer = L.mapbox.featureLayer().addTo(map);
+
+  var featureLayer = L.mapbox.featureLayer('./data/aerodrome.geojson').on('ready', function(e) {
+    for (x in e.target._geojson.features) {
+      var pos = L.latLng(e.target._geojson.features[x].geometry.coordinates[0],
+        e.target._geojson.features[x].geometry.coordinates[1]);
+        L.circle(pos, 5000, {stroke: false, fillOpacity: 0.4}).addTo(myLayer).bindPopup(e.target._geojson.features[x].properties.name);
+      }
+    });
+    var featureLayer2 = L.mapbox.featureLayer('./data/aeroport.geojson').on('ready', function(e) {
+      for (x in e.target._geojson.features) {
+        var pos = L.latLng(e.target._geojson.features[x].geometry.coordinates[0],
+          e.target._geojson.features[x].geometry.coordinates[1]);
+          L.circle(pos, 10000, {stroke: false, fillOpacity: 0.4}).addTo(myLayer).bindPopup(e.target._geojson.features[x].properties.name);
+        }
+      });
+      var featureLayer3 = L.mapbox.featureLayer('./data/helistation.geojson').on('ready', function(e) {
+        for (x in e.target._geojson.features) {
+          // console.log(e.target._geojson);
+          var pos = L.latLng(e.target._geojson.features[x].geometry.coordinates[0],
+            e.target._geojson.features[x].geometry.coordinates[1]);
+            var pos2 = L.latLng(e.target._geojson.features[x].geometry.coordinates[0] + 0.003,
+              e.target._geojson.features[x].geometry.coordinates[1] + 0.004);
+              var pos1 = L.latLng(e.target._geojson.features[x].geometry.coordinates[0] - 0.003,
+                e.target._geojson.features[x].geometry.coordinates[1] - 0.004);
+            L.circle(pos, 3500, {stroke: false, fillColor: '#ffff66', fillOpacity: 0.4}).addTo(myLayer).bindPopup(e.target._geojson.features[x].properties.name);
+
+            var imageUrl = '../Map/Img/helistation2.png',
+            imageBounds = [pos1, pos2];
+            L.imageOverlay(imageUrl, imageBounds).addTo(myLayer);
+          }
+        });
+        var featureLayer4 = L.mapbox.featureLayer('./data/zone_interdites.geojson').on('ready', function(e) {
+          for (x in e.target._geojson.features) {
+            var pos = L.latLng(e.target._geojson.features[x].geometry.coordinates[0],
+              e.target._geojson.features[x].geometry.coordinates[1]);
+              L.circle(pos, 5000, {stroke: false, fillColor: '#ff0000', fillOpacity: 0.4}).addTo(myLayer).bindPopup(e.target._geojson.features[x].properties.name);
+            }
+          });
+          var featureLayer5 = L.mapbox.featureLayer('./data/ulm.geojson').on('ready', function(e) {
+            for (x in e.target._geojson.features) {
+              var pos = L.latLng(e.target._geojson.features[x].geometry.coordinates[0],
+                e.target._geojson.features[x].geometry.coordinates[1]);
+                L.circle(pos, 2500, {stroke: false, fillColor: '#009933', fillOpacity: 0.4}).addTo(myLayer).bindPopup(e.target._geojson.features[x].properties.name);
+              }
+            });
+          }
+
+          $('#noflyzone').clickToggle(function() {
+            addNoFlyZone();
+          },
+          function() {
+            var map = dm.getMap();
+            map.removeLayer(myLayer);
+          });
+
+          function set_mini_map_track() {
+            map = dm.getMap();
+            map.on('mouseup zoomend', function(e) {
+              map = dm.getMap();
+              var latlng = map.getCenter();
+              var zoom = map.getZoom();
+              var mini_map = dm_mini.getMap();
+              mini_map.setView(latlng, zoom - 3);
+            });
+          }
+
+          $(document).ready(function() {
+            set_mini_map_track();
+          });

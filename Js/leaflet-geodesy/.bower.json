@@ -1,0 +1,15 @@
+{
+  "name": "leaflet-geodesy",
+  "homepage": "https://github.com/mapbox/leaflet-geodesy",
+  "version": "0.2.1",
+  "_release": "0.2.1",
+  "_resolution": {
+    "type": "version",
+    "tag": "v0.2.1",
+    "commit": "4aea36b15e60568e5e55f6d0ca52a37bc140b276"
+  },
+  "_source": "https://github.com/mapbox/leaflet-geodesy.git",
+  "_target": "^0.2.1",
+  "_originalSource": "leaflet-geodesy",
+  "_direct": true
+}
